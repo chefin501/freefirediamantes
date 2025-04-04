@@ -1,0 +1,62 @@
+const { PREFIX } = require(`${BASE_DIR}/config`);
+const axios = require("axios");
+const { InvalidParameterError } = require(`${BASE_DIR}/errors/InvalidParameterError`);
+
+module.exports = {
+  name: "like",
+  description: "Consulta e realiza likes em uma conta do Free Fire.",
+  commands: ["like"],
+  usage: `${PREFIX}like <ID do jogador>`,
+  handle: async ({ args, sendReply, sendReact, socket, remoteJid, messageId }) => {
+    if (!args.length) {
+      throw new InvalidParameterError("Você precisa informar um ID de jogador!");
+    }
+
+    const uid = args[0];
+    const quantity = 100;
+
+    const url = `https://likes.ffgarena.cloud/api/likeidszbeta?uid=${uid}&quantity=${quantity}`;
+    
+    // Animação de reação enquanto processa
+    const loadingEmojis = ["⌛", "⏳"];
+    let loading = true;
+    let currentEmoji = 0;
+    const loadingInterval = setInterval(async () => {
+      if (!loading) return;
+      await sendReact(loadingEmojis[currentEmoji]);
+      currentEmoji = 1 - currentEmoji;
+    }, 1000);
+
+    try {
+      const response = await axios.get(url);
+      const data = response.data;
+
+      clearInterval(loadingInterval);
+      loading = false;
+      await sendReact("✅");
+
+      if (data.BotSend === 0) {
+        await sendReply(`O usuário: ${data.PlayerNickname}\njá recebeu likes hoje.`, { quotedMessageId: messageId });
+        return;
+      }
+
+      const msg = `✅ *LIKES ENVIADOS COM SUCESSO!*\n\n` +
+                  `• *Nick:* ${data.PlayerNickname}\n` +
+                  `• *Level:* ${data.PlayerLevel}\n` +
+                  `• *Likes antes:* ${data.Likes_Antes}\n` +
+                  `• *Likes depois:* ${data.Likes_Depois}\n` +
+                  `• *Bot enviou:* ${data.BotSend} likes\n\n` +
+                  `*Quer comprar itens e codiguins baratos?*\n` +
+                  `Entre em nosso grupo: https://chat.whatsapp.com/EYMPiSdu3OH4t3QPrYBFbK`;
+
+      await sendReply(msg, { quotedMessageId: messageId });
+
+    } catch (error) {
+      clearInterval(loadingInterval);
+      loading = false;
+      await sendReact("❌");
+      console.error("Erro ao acessar a API de likes:", error);
+      await sendReply("🤖 Erro ao buscar os dados. Tente novamente mais tarde.", { quotedMessageId: messageId });
+    }
+  },
+};
